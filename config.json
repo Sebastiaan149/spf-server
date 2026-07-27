@@ -1,0 +1,30 @@
+{
+  "title": "Local Star Pattern Fragments server",
+
+  "datasourcetypes": {
+    "HdtDatasource": "org.linkeddatafragments.datasource.hdt.HdtDataSourceType"
+  },
+
+  "datasources": {
+    "spf": {
+      "title": "Local SPF dataset",
+      "type": "HdtDatasource",
+      "description": "Local dataset from the workspace data folder with HDT back-end",
+      "settings": { "file": "../data/dataset.hdt" }
+    }
+  },
+
+  "prefixes": {
+    "rdf":         "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs":        "http://www.w3.org/2000/01/rdf-schema#",
+    "xsd":         "http://www.w3.org/2001/XMLSchema#",
+    "foaf":        "http://xmlns.com/foaf/0.1/",
+    "schema":      "http://schema.org/",
+    "wsdbm":       "http://db.uwaterloo.ca/~galuc/wsdbm/",
+    "gr":          "http://purl.org/goodrelations/",
+    "rev":         "http://purl.org/stuff/rev#",
+    "ogp":         "http://ogp.me/ns#",
+    "hydra":       "http://www.w3.org/ns/hydra/core#",
+    "void":        "http://rdfs.org/ns/void#"
+  }
+}

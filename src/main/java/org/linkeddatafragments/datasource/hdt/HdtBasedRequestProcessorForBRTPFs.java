@@ -116,9 +116,9 @@ public class HdtBasedRequestProcessorForBRTPFs
                 final List<Var> foundVariables,
                 final long offset,
                 final long limit ) {
-            TripleElement _subject = subject.isVariable() ? parseAsResource("?subject") : parseAsResource(subject.asConstantTerm().toString());
-            TripleElement _predicate = predicate.isVariable() ? parseAsProperty(predicate.asNamedVariable()) : parseAsProperty(predicate.asConstantTerm().toString());
-            TripleElement _object = object.isVariable() ? parseAsNode("?object") : parseAsNode(object.asConstantTerm().toString());
+            TripleElement _subject = parseAsResource(getValue(subject, "subject"));
+            TripleElement _predicate = parseAsProperty(getValue(predicate, "predicate"));
+            TripleElement _object = parseAsNode(getValue(object, "object"));
 
             final TripleIDCachingIterator it = new TripleIDCachingIterator(
                     bindings, foundVariables,
@@ -203,6 +203,20 @@ public class HdtBasedRequestProcessorForBRTPFs
             boolean isLastPage = triplesAddedInCurrentPage < limit;
             return new TriplePatternFragmentImpl(triples, estimatedValid, request.getFragmentURL(),
                     request.getDatasetURL(), request.getPageNumber(), isLastPage);
+        }
+
+        private String getValue(
+                final ITriplePatternElement<RDFNode,String,String> element,
+                final String fallbackVariableName) {
+            if (!element.isVariable()) {
+                return element.asConstantTerm().toString();
+            }
+
+            if (element.isNamedVariable()) {
+                return "?" + element.asNamedVariable();
+            }
+
+            return "?" + fallbackVariableName;
         }
 
         private long estimateResultSetSize(final TripleID t) {
