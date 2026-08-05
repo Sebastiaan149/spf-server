@@ -21,7 +21,7 @@ public class LRUCache<K, V> {
         container = new HashMap<K, Node<K, V>>();
     }
 
-    public V get(K key) {
+    public synchronized V get(K key) {
         Node<K, V> tempNode = container.get(key);
         try {
             lock.lock();
@@ -56,13 +56,13 @@ public class LRUCache<K, V> {
         return tempNode.value;
     }
 
-    public boolean containsKey(K key) {
+    public synchronized boolean containsKey(K key) {
         return container.containsKey(key) || (inserted &&
                 ((lru.key != null && lru.key.equals(key)) ||
                         (mru.key != null && mru.key.equals(key))));
     }
 
-    public void remove(K key) {
+    public synchronized void remove(K key) {
         if (!container.containsKey(key)) return;
 
         try {
@@ -103,7 +103,7 @@ public class LRUCache<K, V> {
         }
     }
 
-    public void put(K key, V value) {
+    public synchronized void put(K key, V value) {
         if (container.containsKey(key)) {
             return;
         }

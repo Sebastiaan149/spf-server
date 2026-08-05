@@ -38,7 +38,7 @@ class RdfWriterImpl extends LinkedDataFragmentWriterBase implements ILinkedDataF
 
     @Override
     public void writeError(ServletOutputStream outputStream, Exception ex) throws IOException {
-        outputStream.println(ex.getMessage());
+        outputStream.println(ex.getMessage() == null ? ex.getClass().getName() : ex.getMessage());
         outputStream.close();
     }
 

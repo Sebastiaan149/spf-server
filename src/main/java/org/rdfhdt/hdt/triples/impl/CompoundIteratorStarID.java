@@ -40,7 +40,7 @@ public class CompoundIteratorStarID implements IteratorStarID {
     }
 
     @Override
-    public boolean hasNext() {
+    public synchronized boolean hasNext() {
         while(next == null) {
             buffer();
             if(next == null) break;
@@ -55,7 +55,10 @@ public class CompoundIteratorStarID implements IteratorStarID {
     }
 
     @Override
-    public StarID next() {
+    public synchronized StarID next() {
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
         StarID ret = next;
         next = null;
         return ret;

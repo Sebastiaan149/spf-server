@@ -28,6 +28,7 @@ import org.rdfhdt.hdtjena.NodeDictionary;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 
 import static org.linkeddatafragments.util.CommonResources.INVALID_URI;
@@ -37,6 +38,7 @@ public class HdtBasedRequestProcessorForSPFs
         extends AbstractRequestProcessorForStarPatterns<RDFNode, String, String> {
     private final String regex = "^(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]";
     private final LRUCache<Tuple<Long, Long>, IteratorStarString> pageCache;
+    private static final Map<Long, Object> REQUEST_LOCKS = new ConcurrentHashMap<>();
 
     /**
      * HDT Datasource
@@ -135,6 +137,17 @@ public class HdtBasedRequestProcessorForSPFs
         }
 
         private ILinkedDataFragment createFragmentByTriplePatternSubstitution(
+                final StarString star,
+                final List<Binding> bindings,
+                final long offset,
+                final long limit,
+                final long requestHash) {
+            synchronized (REQUEST_LOCKS.computeIfAbsent(requestHash, ignored -> new Object())) {
+                return createFragmentByTriplePatternSubstitutionLocked(star, bindings, offset, limit, requestHash);
+            }
+        }
+
+        private ILinkedDataFragment createFragmentByTriplePatternSubstitutionLocked(
                 final StarString star,
                 final List<Binding> bindings,
                 final long offset,
