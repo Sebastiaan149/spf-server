@@ -6,7 +6,10 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
 import org.apache.commons.cli.HelpFormatter;
 import org.apache.commons.cli.Options;
+import org.eclipse.jetty.server.HttpConfiguration;
+import org.eclipse.jetty.server.HttpConnectionFactory;
 import org.eclipse.jetty.server.Server;
+import org.eclipse.jetty.server.ServerConnector;
 import org.eclipse.jetty.servlet.DefaultServlet;
 import org.eclipse.jetty.servlet.ServletContextHandler;
 import org.eclipse.jetty.servlet.ServletHolder;
@@ -14,6 +17,8 @@ import org.linkeddatafragments.servlet.LinkedDataFragmentServlet;
 
 
 public class JettyServer {
+    private static final int MAX_REQUEST_HEADER_SIZE = 1024 * 1024;
+
     private static void printHelp(Options options) {
         HelpFormatter formatter = new HelpFormatter();
         formatter.printHelp("java -jar target/ldf-server.jar [config-example.json] [<options>]",
@@ -51,7 +56,12 @@ public class JettyServer {
         }
 
         // create a new (Jetty) server, and add a servlet handler
-        Server server = new Server(port);
+        Server server = new Server();
+        HttpConfiguration httpConfiguration = new HttpConfiguration();
+        httpConfiguration.setRequestHeaderSize(MAX_REQUEST_HEADER_SIZE);
+        ServerConnector connector = new ServerConnector(server, new HttpConnectionFactory(httpConfiguration));
+        connector.setPort(port);
+        server.addConnector(connector);
 
         // The filesystem paths we will map
         String pwdPath = System.getProperty("user.dir");
