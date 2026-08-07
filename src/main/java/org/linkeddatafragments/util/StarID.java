@@ -180,8 +180,11 @@ public class StarID implements Comparable<StarID>, Serializable {
 
     @Override
     public boolean equals(Object o) {
+        if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        return this.hashCode() == o.hashCode();
+        StarID other = (StarID) o;
+        return subject == other.subject
+                && new HashSet<>(triples).equals(new HashSet<>(other.triples));
     }
 
     @Override
