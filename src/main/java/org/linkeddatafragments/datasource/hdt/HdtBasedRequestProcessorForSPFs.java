@@ -1,13 +1,11 @@
 package org.linkeddatafragments.datasource.hdt;
 
 import org.apache.jena.datatypes.TypeMapper;
-import org.apache.jena.graph.Node;
 import org.apache.jena.graph.NodeFactory;
 import org.apache.jena.graph.Triple;
 import org.apache.jena.query.*;
 import org.apache.jena.rdf.model.*;
 import org.apache.jena.shared.InvalidPropertyURIException;
-import org.apache.jena.sparql.core.Var;
 import org.apache.jena.sparql.engine.binding.Binding;
 import org.linkeddatafragments.characteristicset.CharacteristicSetImpl;
 import org.linkeddatafragments.characteristicset.ICharacteristicSet;
@@ -18,7 +16,6 @@ import org.linkeddatafragments.fragments.spf.IStarPatternElement;
 import org.linkeddatafragments.fragments.spf.IStarPatternFragmentRequest;
 import org.linkeddatafragments.fragments.spf.StarPatternFragmentImpl;
 import org.linkeddatafragments.util.*;
-import org.rdfhdt.hdt.exceptions.NotFoundException;
 import org.rdfhdt.hdt.hdt.HDT;
 import org.rdfhdt.hdt.iterator.DictionaryTranslateIteratorStar;
 import org.rdfhdt.hdt.triples.*;
@@ -28,7 +25,6 @@ import org.rdfhdt.hdtjena.NodeDictionary;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 
 import static org.linkeddatafragments.util.CommonResources.INVALID_URI;
@@ -38,7 +34,8 @@ public class HdtBasedRequestProcessorForSPFs
         extends AbstractRequestProcessorForStarPatterns<RDFNode, String, String> {
     private final String regex = "^(https?|ftp|file)://[-a-zA-Z0-9+&@#/%?=~_|!:,.;]*[-a-zA-Z0-9+&@#/%=~_|]";
     private final LRUCache<Tuple<Long, Long>, IteratorStarString> pageCache;
-    private static final Map<Long, Object> REQUEST_LOCKS = new ConcurrentHashMap<>();
+    private static final int REQUEST_LOCK_COUNT = 256;
+    private static final Object[] REQUEST_LOCKS = createRequestLocks();
 
     /**
      * HDT Datasource
@@ -58,6 +55,12 @@ public class HdtBasedRequestProcessorForSPFs
     protected final NodeDictionary dictionary;
 
     protected static Map<StarString, Double> elemSizeCache = new HashMap<>();
+
+    private static Object[] createRequestLocks() {
+        Object[] locks = new Object[REQUEST_LOCK_COUNT];
+        Arrays.setAll(locks, ignored -> new Object());
+        return locks;
+    }
 
     /**
      * Creates the request processor.
@@ -142,7 +145,7 @@ public class HdtBasedRequestProcessorForSPFs
                 final long offset,
                 final long limit,
                 final long requestHash) {
-            synchronized (REQUEST_LOCKS.computeIfAbsent(requestHash, ignored -> new Object())) {
+            synchronized (REQUEST_LOCKS[(int) Math.floorMod(requestHash, REQUEST_LOCK_COUNT)]) {
                 return createFragmentByTriplePatternSubstitutionLocked(star, bindings, offset, limit, requestHash);
             }
         }
@@ -153,10 +156,6 @@ public class HdtBasedRequestProcessorForSPFs
                 final long offset,
                 final long limit,
                 final long requestHash) {
-            if (star.size() == 1) {
-                return createSingleTripleStarFragment(star, bindings, offset, limit);
-            }
-
             final List<Model> stars = new ArrayList<>();
             int found = 0;
             int skipped = 0, count = 0;
@@ -235,88 +234,6 @@ public class HdtBasedRequestProcessorForSPFs
             return new StarPatternFragmentImpl(stars, estimatedValid, request.getFragmentURL(), request.getDatasetURL(), request.getPageNumber(), isLastPage, found);
         }
 
-        private ILinkedDataFragment createSingleTripleStarFragment(
-                final StarString star,
-                final List<Binding> bindings,
-                final long offset,
-                final long limit) {
-            final List<TripleString> matches = new ArrayList<>();
-
-            for (StarString substitutedStar : expandBindings(star, bindings)) {
-                TripleString pattern = substitutedStar.getTripleString(0);
-                try {
-                    IteratorTripleString results = datasource.search(
-                            pattern.getSubject(),
-                            pattern.getPredicate(),
-                            pattern.getObject());
-                    while (results.hasNext()) {
-                        matches.add(new TripleString(results.next()));
-                    }
-                } catch (NotFoundException ignored) {
-                    // No triples match this substituted binding.
-                }
-            }
-
-            final List<Model> stars = new ArrayList<>();
-            long index = 0;
-            for (TripleString match : matches) {
-                if (index++ < offset) {
-                    continue;
-                }
-                if (stars.size() >= limit) {
-                    break;
-                }
-                Model triples = ModelFactory.createDefaultModel();
-                triples.add(triples.asStatement(toTriple(match)));
-                stars.add(triples);
-            }
-
-            final long total = matches.size();
-            final boolean isLastPage = offset + stars.size() >= total;
-            return new StarPatternFragmentImpl(
-                    stars,
-                    total,
-                    request.getFragmentURL(),
-                    request.getDatasetURL(),
-                    request.getPageNumber(),
-                    isLastPage,
-                    stars.size());
-        }
-
-        private List<StarString> expandBindings(final StarString star, final List<Binding> bindings) {
-            final List<StarString> expanded = new ArrayList<>();
-            if (bindings == null || bindings.isEmpty()) {
-                expanded.add(copyStar(star));
-                return expanded;
-            }
-
-            for (Binding binding : bindings) {
-                StarString substituted = copyStar(star);
-                Iterator<Var> vars = binding.vars();
-                while (vars.hasNext()) {
-                    Var var = vars.next();
-                    Node node = binding.get(var);
-                    String value = "";
-                    if (node.isLiteral()) {
-                        value = node.getLiteral().toString();
-                    } else if (node.isURI()) {
-                        value = node.getURI();
-                    }
-                    substituted.updateField(var.getVarName(), value);
-                }
-                expanded.add(substituted);
-            }
-            return expanded;
-        }
-
-        private StarString copyStar(final StarString star) {
-            List<Tuple<CharSequence, CharSequence>> triples = new ArrayList<>();
-            for (Tuple<CharSequence, CharSequence> triple : star.getTriples()) {
-                triples.add(new Tuple<>(triple.x.toString(), triple.y.toString()));
-            }
-            return new StarString(star.getSubject().toString(), triples);
-        }
-
         private List<Triple> toTriples(StarString star) {
             List<Triple> ret = new ArrayList<>();
 
@@ -332,11 +249,5 @@ public class HdtBasedRequestProcessorForSPFs
             return ret;
         }
 
-        private Triple toTriple(TripleString tpl) {
-            String obj = tpl.getObject().toString();
-            return new Triple(NodeFactory.createURI(tpl.getSubject().toString()),
-                    NodeFactory.createURI(tpl.getPredicate().toString()),
-                    obj.matches(regex) ? NodeFactory.createURI(obj) : NodeFactory.createLiteral(obj.replace("\"", "")));
-        }
     } // end of Worker
 }
